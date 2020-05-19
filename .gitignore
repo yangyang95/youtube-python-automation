@@ -1,0 +1,12 @@
+# Ignore my API TOKEN
+client_secret.json
+secrets.py
+
+# Ignore test result
+*.txt
+
+# Ignore vscode config
+.vscode/*
+
+# Ignore python cache
+__pycache__
