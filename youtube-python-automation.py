@@ -15,6 +15,8 @@ class CreatePlaylist:
     def __init__(self):
         self.youtube_client = self.get_youtube_client()
         self.all_song_info = {}
+        self.spotify_playlist_name = "Youtube playlist"
+        self.target_youtube_playlist = {'Joyful Music'}
 
     # Step 1: Login to youtube
     def get_youtube_client(self):
@@ -34,10 +36,10 @@ class CreatePlaylist:
 
         return youtube_client
 
-    # Step 2: Grab playlist from youtube
+    # Step 2: Grab playlist from youtube 
     def get_liked_video(self):
         
-        request = youtube.playlists().list(
+        request = self.youtube_client.playlists().list(
             part="snippet",
             maxResults=25,
             mine=True
@@ -46,31 +48,75 @@ class CreatePlaylist:
         response = request.execute()
 
         # Collect videos and get important information
-        for item in response["items"]:
-            video_title = item["snippet"]["title"]
-            youtube_url = "https://www.youtube.com/watch?v={}".format(item["id"])
+        for playlist in response["items"]:
+            
+            playlist_name = playlist["snippet"]["title"]
 
+            # Only collect desired youtube playlist
+            if playlist_name not in self.target_youtube_playlist:
+                continue
+
+            youtube_url = "https://www.youtube.com/playlist?list={}".format(playlist["id"])
+
+            ydl_opts = {
+                'simulate' : True, # Do not download the video and do not write anything to disk
+                'ignoreerrors': True,  # skip private video
+                'flat-playlist': True # Do not extract the videos of a playlist, only list them.
+            }
+            
             # Use youtube_dl to collect the song name and artist name
-            video = youtube_dl.YoutubeDL({}).extract_info(youtube_url, download=False)
-            song_name = video["track"]
-            artist = video["artist"]
+            video_in_playlist = youtube_dl.YoutubeDL(ydl_opts).extract_info(youtube_url, download=False)
 
-            # Save all important info
-            if song_name is not None and artist is not None:
-                self.all_song_info[video_title] = {
-                    "youtube_url": youtube_url,
-                    "song_name": song_name,
-                    "artist": artist,
+            # Check information collected is playlist and not empty
+            if video_in_playlist['_type'] != 'playlist' or 'entries' not in video_in_playlist:
+                raise NoPlaylistException('Not a Playlist')
 
-                    # Add the url, easy to get song to put into playlist
-                    "spotify_uri": self.get_spotify_uri(song_name, artist)
-                }
+            for video in video_in_playlist['entries']:
 
-    # Step 3: Crete spotify playlist if not exist
+                video_title = video['title']
+
+                # Save all important info
+                if video_title not in self.all_song_info:
+                    
+                    song_name = video["track"]
+                    artist = video["artist"]
+        
+                    self.all_song_info[video_title] = {
+                        "youtube_url": youtube_url,
+                        "song_name": song_name,
+                        "artist": artist,
+
+                        # Add the url, easy to get song to put into playlist
+                        "spotify_uri": self.get_spotify_uri(song_name, artist)
+                    }
+
+    # Step 3: Check whether soptify is exist
+    def search_spotify_playlist(self):
+
+        query = "https://api.spotify.com/v1/me/playlists"
+
+        response = requests.get(
+            query,
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": "Bearer {}".format(spotify_token)
+            }
+        )
+
+        response_json = response.json()
+
+        for item in response_json["items"]:
+            
+            if item["name"] == self.spotify_playlist_name:
+                return item["id"]
+
+        return None
+
+    # Step 4: Crete spotify playlist if not exist
     def create_playlist(self):
         
         request_body = json.dumps({
-            "name": "Youtube playlist",
+            "name": self.spotify_playlist_name,
             "description": "Liked video in youtube",
             "public": False
         })
@@ -87,13 +133,14 @@ class CreatePlaylist:
         )
 
         response_json = response.json()
+        spotify_playlist = response_json["id"]
 
         # Return playlist id
-        return response_json["id"]
+        return spotify_playlist
 
     def get_spotify_uri(self, song_name, artist):
         
-        query = "https://api.spotify.com/v1/search?query=track%3A{}+artist%3A{}&type=track&offset=0&limit=20".format(
+        query = "https://api.spotify.com/v1/search?query=track%3A{}+artist%3A{}&type=track&offset=0&limit=5".format(
             song_name,
             artist
         )
@@ -104,6 +151,12 @@ class CreatePlaylist:
                 "Authorization": "Bearer {}".format(spotify_token)
             }
         )
+
+        if response.status_code == 401:
+            print ("Spotify token need update!\n \
+                    Checkout: https://developer.spotify.com/console/get-search-item/")
+            raise ResponseException(response.status_code)
+
         response_json = response.json()
         songs = response_json["tracks"]["items"]
 
