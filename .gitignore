@@ -10,3 +10,6 @@ secrets.py
 
 # Ignore python cache
 __pycache__
+
+# Ignore json file
+*.json
