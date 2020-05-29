@@ -115,25 +115,28 @@ class CreatePlaylist:
     # Step 4: Crete spotify playlist if not exist
     def create_playlist(self):
         
-        request_body = json.dumps({
-            "name": self.spotify_playlist_name,
-            "description": "Liked video in youtube",
-            "public": False
-        })
-
-        query = "https://api.spotify.com/v1/users/{}/playlists".format(spotify_user_id)
+        spotify_playlist = search_spotify_playlist()
         
-        response = requests.post(
-            query,
-            data = request_body,
-            headers = {
-                "Content-Type": "application/json",
-                "Authorization": "Bearer {}".format(spotify_token)
-            }
-        )
+        if(spotify_playlist == None):
+            request_body = json.dumps({
+                "name": self.spotify_playlist_name,
+                "description": "Liked video in youtube",
+                "public": False
+            })
 
-        response_json = response.json()
-        spotify_playlist = response_json["id"]
+            query = "https://api.spotify.com/v1/users/{}/playlists".format(spotify_user_id)
+            
+            response = requests.post(
+                query,
+                data = request_body,
+                headers = {
+                    "Content-Type": "application/json",
+                    "Authorization": "Bearer {}".format(spotify_token)
+                }
+            )
+
+            response_json = response.json()
+            spotify_playlist = response_json["id"]
 
         # Return playlist id
         return spotify_playlist
