@@ -115,9 +115,9 @@ class CreatePlaylist:
     # Step 4: Crete spotify playlist if not exist
     def create_playlist(self):
         
-        spotify_playlist = search_spotify_playlist()
+        spotify_playlist = self.search_spotify_playlist()
         
-        if(spotify_playlist == None):
+        if spotify_playlist == None:
             request_body = json.dumps({
                 "name": self.spotify_playlist_name,
                 "description": "Liked video in youtube",
@@ -147,6 +147,7 @@ class CreatePlaylist:
             song_name,
             artist
         )
+
         response = requests.get(
             query,
             headers={
@@ -156,17 +157,22 @@ class CreatePlaylist:
         )
 
         if response.status_code == 401:
-            print ("Spotify token need update!\n \
-                    Checkout: https://developer.spotify.com/console/get-search-item/")
+            print ("Spotify token need update! \n\
+                    Checkout: https://developer.spotify.com/console/post-playlist-tracks/?playlist_id=&position=&uris= \n\
+                    check scopes: (1) playist-modify-public (2) playlist-read-private \
+                                  (3) user-read-private (4) playlist-read-collabrative")
             raise ResponseException(response.status_code)
 
+        
         response_json = response.json()
         songs = response_json["tracks"]["items"]
 
-        # only use the first song
-        uri = songs[0]["uri"]
-
-        return uri
+        #  Return spotify uri if track is found
+        if songs:
+            # only use the first song
+            uri = songs[0]["uri"]
+            return uri
+        return None
 
     # Step 5: Add searched song to playlist
     def add_song_to_playlist(self):
@@ -177,7 +183,8 @@ class CreatePlaylist:
         # Collect all of uri
         uris = []
         for song, info in self.all_song_info.items():
-            uris.append(info["spotify_uri"])
+            if info["spotify_uri"] != None:
+                uris.append(info["spotify_uri"])
 
         # Create a new playlist
         playlist_id = self.create_playlist()
