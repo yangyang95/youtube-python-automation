@@ -36,6 +36,7 @@ class CreatePlaylist:
 
         return youtube_client
 
+
     # Step 2: Grab playlist from youtube 
     def get_liked_video(self):
         
@@ -90,6 +91,7 @@ class CreatePlaylist:
                         "spotify_uri": self.get_spotify_uri(song_name, artist)
                     }
 
+
     # Step 3: Check whether soptify is exist
     def search_spotify_playlist(self):
 
@@ -112,11 +114,17 @@ class CreatePlaylist:
 
         return None
 
+
     # Step 4: Crete spotify playlist if not exist
     def create_playlist(self):
         
+        # Check whether desired playlist exist
         spotify_playlist = self.search_spotify_playlist()
         
+        # Store songs that already in playlist
+        songs_in_playlist = []
+
+        # Create new playlist if not exist
         if spotify_playlist == None:
             request_body = json.dumps({
                 "name": self.spotify_playlist_name,
@@ -138,12 +146,31 @@ class CreatePlaylist:
             response_json = response.json()
             spotify_playlist = response_json["id"]
 
+        # Fetch songs in existing playlist
+        else:
+
+            query = "https://api.spotify.com/v1/playlists/{}/tracks".format(spotify_playlist)
+
+            response = requests.get(
+                query,
+                headers = {
+                    "Content-Type": "application/json",
+                    "Authorization": "Bearer {}".format(spotify_token)
+                }
+            )
+
+            response_json = response.json()
+
+            for song in response_json["items"]:
+                songs_in_playlist.append(song['track']["uri"])
+
         # Return playlist id
-        return spotify_playlist
+        return spotify_playlist, songs_in_playlist
+
 
     def get_spotify_uri(self, song_name, artist):
         
-        query = "https://api.spotify.com/v1/search?query=track%3A{}+artist%3A{}&type=track&offset=0&limit=5".format(
+        query = "https://api.spotify.com/v1/search?query=track%3A{}+artist%3A{}&type=track&market=TW&offset=0&limit=5".format(
             song_name,
             artist
         )
@@ -160,7 +187,7 @@ class CreatePlaylist:
             print ("Spotify token need update! \n\
                     Checkout: https://developer.spotify.com/console/post-playlist-tracks/?playlist_id=&position=&uris= \n\
                     check scopes: (1) playist-modify-public (2) playlist-read-private \
-                                  (3) user-read-private (4) playlist-read-collabrative")
+                                  (3) playlist-read-private (4) playlist-read-collabrative")
             raise ResponseException(response.status_code)
 
         
@@ -174,42 +201,51 @@ class CreatePlaylist:
             return uri
         return None
 
+
     # Step 5: Add searched song to playlist
     def add_song_to_playlist(self):
         
         # Populate song dictionary
         self.get_liked_video()
 
+        # Check whether youtube playlist exist. If not, create a new playlist
+        playlist_id, songs_in_playlist = self.create_playlist()
+
         # Collect all of uri
         uris = []
         for song, info in self.all_song_info.items():
-            if info["spotify_uri"] != None:
+            
+            # ignore song can't found or already exists
+            if info["spotify_uri"] != None and info["spotify_uri"] not in songs_in_playlist:
                 uris.append(info["spotify_uri"])
 
-        # Create a new playlist
-        playlist_id = self.create_playlist()
+        # Add songs into new playlist if not exist
+        if uris:
+        
+            request_data = json.dumps(uris)
+            query = "https://api.spotify.com/v1/playlists/{}/tracks".format(playlist_id)
 
-        # Add all songs into new playlist
-        request_data = json.dumps(uris)
+            response = requests.post(
+                query,
+                data = request_data,
+                headers = 
+                {
+                    "Content-Type": "application/json",
+                    "Authorization": "Bearer {}".format(spotify_token)
+                }
+            )
 
-        query = "https://api.spotify.com/v1/playlists/{}/tracks".format(playlist_id)
-
-        response = requests.post(
-            query,
-            data = request_data,
-            headers = 
-            {
-                "Content-Type": "application/json",
-                "Authorization": "Bearer {}".format(spotify_token)
-            }
-        )
-
-        # check for valid response status
-        if response.status_code != 200:
-            raise ResponseException(response.status_code)
-
-        response_json = response.json()
-        return response
+            # check for valid response status
+            if response.status_code not in {200, 201}:
+                raise ResponseException(response.status_code)
+            else:
+                print("playlist update success!")
+            
+            response_json = response.json()
+            return response
+        
+        else:
+            print("All songs up-to-date!")
 
 
 if __name__ == '__main__':
