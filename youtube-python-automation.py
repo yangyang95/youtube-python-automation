@@ -16,7 +16,7 @@ class CreatePlaylist:
         self.youtube_client = self.get_youtube_client()
         self.all_song_info = {}
         self.spotify_playlist_name = "Youtube playlist"
-        self.target_youtube_playlist = {'Joyful Music'}
+        self.target_youtube_playlist = {'Joyful Music', 'hip hop music'}
 
     # Step 1: Login to youtube
     def get_youtube_client(self):
@@ -74,22 +74,24 @@ class CreatePlaylist:
 
             for video in video_in_playlist['entries']:
 
-                video_title = video['title']
+                # If youtube_dl return information of this song, add to all_song_info 
+                if video != None:
+                    video_title = video['title']
 
-                # Save all important info
-                if video_title not in self.all_song_info:
-                    
-                    song_name = video["track"]
-                    artist = video["artist"]
-        
-                    self.all_song_info[video_title] = {
-                        "youtube_url": youtube_url,
-                        "song_name": song_name,
-                        "artist": artist,
+                    # Save all important info
+                    if video_title not in self.all_song_info:
+                        
+                        song_name = video["track"]
+                        artist = video["artist"]
+            
+                        self.all_song_info[video_title] = {
+                            "youtube_url": youtube_url,
+                            "song_name": song_name,
+                            "artist": artist,
 
-                        # Add the url, easy to get song to put into playlist
-                        "spotify_uri": self.get_spotify_uri(song_name, artist)
-                    }
+                            # Add the url, easy to get song to put into playlist
+                            "spotify_uri": self.get_spotify_uri(song_name, artist)
+                        }
 
 
     # Step 3: Check whether soptify is exist
